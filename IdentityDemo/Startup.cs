@@ -47,15 +47,42 @@ namespace IdentityDemo
                 .AddEntityFrameworkStores<ApplicationDbContext>()
                 .AddDefaultTokenProviders();
 
+            //dcowan: Enable Account lockout for protecting against brute force attacks
+            /*
+             *  Recommended to user account lockout for 2FA (two-factor authentication).
+             *  Once a user logs in (through local account or social account), each failed attempt at 2FA is stored,
+             *  and if the maximum attempts (default is 5) is reached, the user is locked out for five minutes
+             *  (you can set the lock out time with DefaultAccountLockoutTimeSpan)
+             *  
+             *  The following configures account lockout to be locked for 5 minutes after 3 failed attempts.
+             */
+            services.AddIdentity<ApplicationUser, IdentityRole>(config =>
+            {
+                config.SignIn.RequireConfirmedEmail = true; //this was done within the AccountController login post
+                config.Lockout.DefaultLockoutTimeSpan = TimeSpan.FromMinutes(5);//this is the default
+                config.Lockout.MaxFailedAccessAttempts = 3; //this is not the default (5)
+            });
+
             services.AddMvc();
 
             // Add application services.
             services.AddTransient<IEmailSender, AuthMessageSender>();
             services.AddTransient<ISmsSender, AuthMessageSender>();
+
+            //dcowan: Register Custom Services
+            services.AddTransient<AdministratorSeedData>();
+            services.AddSingleton<IRequestFormDataService, RequestFormDataService>();
+            /*
+             *  Singleton lifetime services are created the first time they are requested
+             *  (or when ConfigureServices is run if you specify the instance there) and 
+             *  then every subsequent request will use the same instance
+             */ 
         }
 
         // This method gets called by the runtime. Use this method to configure the HTTP request pipeline.
-        public void Configure(IApplicationBuilder app, IHostingEnvironment env, ILoggerFactory loggerFactory)
+        public async void Configure(IApplicationBuilder app, IHostingEnvironment env, 
+            ILoggerFactory loggerFactory, //dcowan add seed data for admin
+            AdministratorSeedData seeder)
         {
             loggerFactory.AddConsole(Configuration.GetSection("Logging"));
             loggerFactory.AddDebug();
@@ -83,6 +110,9 @@ namespace IdentityDemo
                     name: "default",
                     template: "{controller=Home}/{action=Index}/{id?}");
             });
+
+            //dcowan: Seed administrator data
+            await seeder.EnsureSeedData();
         }
     }
 }
